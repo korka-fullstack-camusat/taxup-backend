@@ -1,7 +1,8 @@
 import uuid
 import math
+from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -73,11 +74,10 @@ async def get_fraud_alert(
     db: AsyncSession = Depends(get_db),
 ):
     """Get a specific fraud alert by ID."""
-    from fastapi import HTTPException
     result = await db.execute(select(FraudAlert).where(FraudAlert.id == alert_id))
     alert = result.scalar_one_or_none()
     if not alert:
-        raise HTTPException(status_code=404, detail="Fraud alert not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fraud alert not found")
     return alert
 
 
@@ -92,16 +92,17 @@ async def update_fraud_alert(
     db: AsyncSession = Depends(get_db),
 ):
     """Update the status of a fraud alert (confirm or mark as false positive)."""
-    from fastapi import HTTPException
-    from datetime import datetime, timezone
     result = await db.execute(select(FraudAlert).where(FraudAlert.id == alert_id))
     alert = result.scalar_one_or_none()
     if not alert:
-        raise HTTPException(status_code=404, detail="Fraud alert not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Fraud alert not found")
 
     alert.status = update_data.status
     if update_data.description:
         alert.description = update_data.description
     if update_data.status in (FraudStatus.RESOLVED, FraudStatus.FALSE_POSITIVE):
         alert.resolved_at = datetime.now(timezone.utc)
+
+    await db.flush()
+    await db.refresh(alert)
     return alert

@@ -1,6 +1,6 @@
 import uuid
 import math
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_active_user
@@ -41,10 +41,9 @@ async def mark_notification_read(
     current_user: User = Depends(get_current_active_user),
 ):
     """Mark a notification as read."""
-    from fastapi import HTTPException
     notification = await NotificationService.mark_as_read(db, notification_id, current_user.id)
     if not notification:
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
     return notification
 
 

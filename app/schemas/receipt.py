@@ -22,7 +22,9 @@ class FiscalReceiptResponse(BaseModel):
     fiscal_period: str
     is_certified: bool
     is_cancelled: bool
+    cancellation_reason: Optional[str]
     issued_at: datetime
+    cancelled_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
 
