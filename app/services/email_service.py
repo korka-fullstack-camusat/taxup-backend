@@ -12,8 +12,17 @@ BREVO_API_URL = "https://api.brevo.com/v3/smtp/email"
 
 
 async def _send(to_email: str, to_name: str, subject: str, html: str) -> bool:
+    print(f"\n{'='*60}")
+    print(f"[EMAIL] Tentative d'envoi")
+    print(f"  → Destinataire : {to_name} <{to_email}>")
+    print(f"  → Sujet        : {subject}")
+    print(f"  → Expéditeur   : {settings.EMAILS_FROM_NAME} <{settings.EMAILS_FROM_EMAIL}>")
+    print(f"  → BREVO_API_KEY: {'✓ configurée' if settings.BREVO_API_KEY else '✗ MANQUANTE — email ne sera pas envoyé'}")
+    print(f"{'='*60}")
+
     if not settings.BREVO_API_KEY:
         logger.warning("BREVO_API_KEY not configured — email not sent to %s", to_email)
+        print(f"[EMAIL] ✗ Abandon : BREVO_API_KEY non configurée\n")
         return False
 
     payload = {
@@ -28,13 +37,18 @@ async def _send(to_email: str, to_name: str, subject: str, html: str) -> bool:
         "api-key": settings.BREVO_API_KEY,
     }
     try:
+        print(f"[EMAIL] Appel Brevo API → {BREVO_API_URL}")
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.post(BREVO_API_URL, json=payload, headers=headers)
+            print(f"[EMAIL] Réponse Brevo : HTTP {resp.status_code}")
             if resp.status_code not in (200, 201):
+                print(f"[EMAIL] ✗ Erreur Brevo : {resp.text}\n")
                 logger.error("Brevo API error %s: %s", resp.status_code, resp.text)
                 return False
+            print(f"[EMAIL] ✓ Email envoyé avec succès à {to_email}\n")
             return True
     except Exception as exc:
+        print(f"[EMAIL] ✗ Exception lors de l'envoi : {exc}\n")
         logger.error("Email send failed: %s", exc)
         return False
 
