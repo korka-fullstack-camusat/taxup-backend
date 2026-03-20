@@ -28,7 +28,7 @@ secrets/
 *.key
 
 # Environment
-.env
+!.env
 !.env.example
 
 # IDEs
