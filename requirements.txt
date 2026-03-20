@@ -1,7 +1,7 @@
 # Web framework
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
-uvloop==0.21.0
+uvloop==0.21.0; sys_platform != "win32"
 
 # Database
 sqlalchemy==2.0.36
