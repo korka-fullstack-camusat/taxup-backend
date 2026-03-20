@@ -72,3 +72,29 @@ class UserResponse(UserBase):
 
 class UserAdminResponse(UserResponse):
     api_key: Optional[str] = None
+
+
+class UserAdminUpdate(BaseModel):
+    """Schema for admin updating any user field."""
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    organization: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+    password: Optional[str] = None
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone(cls, v: Optional[str]) -> Optional[str]:
+        if v and not re.match(r"^\+?[0-9]{8,15}$", v):
+            raise ValueError("Invalid phone number format")
+        return v
+
+
+class PaginatedUsers(BaseModel):
+    items: list[UserResponse]
+    total: int
+    page: int
+    page_size: int
+    pages: int

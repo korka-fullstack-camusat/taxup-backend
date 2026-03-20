@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, transactions, receipts, audits, dashboard, fraud, notifications
+from app.api.v1 import auth, transactions, receipts, audits, dashboard, fraud, notifications, admin
 
 api_router = APIRouter()
 
@@ -10,3 +10,4 @@ api_router.include_router(audits.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(fraud.router)
 api_router.include_router(notifications.router)
+api_router.include_router(admin.router)
