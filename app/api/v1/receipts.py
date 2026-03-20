@@ -2,6 +2,7 @@ import uuid
 import math
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -70,6 +71,40 @@ async def list_receipts(
         page=page,
         page_size=page_size,
         pages=math.ceil(total / page_size) if total else 1,
+    )
+
+
+@router.get("/{receipt_id}/download")
+async def download_receipt(
+    receipt_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Download a fiscal receipt as a formatted text file."""
+    receipt = await ReceiptService.get_receipt(db, receipt_id, current_user)
+    status_label = "ANNULÉ" if receipt.is_cancelled else "VALIDE"
+    issued = str(receipt.issued_at)[:19].replace("T", " ")
+    lines = [
+        "=" * 50,
+        "        REÇU FISCAL — TAXUP",
+        "  Plateforme Nationale d'Audit Digital Fiscal",
+        "=" * 50,
+        f"N° Reçu       : {receipt.receipt_number}",
+        f"Période       : {receipt.fiscal_period}",
+        f"Statut        : {status_label}",
+        f"Émis le       : {issued}",
+        "-" * 50,
+        f"Montant total : {receipt.total_amount:,.0f} XOF",
+        f"Taxe ({receipt.tax_rate * 100:.1f}%)  : {receipt.tax_amount:,.0f} XOF",
+        "-" * 50,
+        f"Transaction   : {receipt.transaction_id}",
+        "=" * 50,
+    ]
+    content = "\n".join(lines) + "\n"
+    filename = f"recu-{receipt.receipt_number}.txt"
+    return PlainTextResponse(
+        content=content,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
