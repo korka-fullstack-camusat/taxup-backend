@@ -54,12 +54,10 @@ class Settings(BaseSettings):
     DEFAULT_TAX_RATE: float = 0.18  # 18% TVA
     FRAUD_RISK_THRESHOLD: float = 0.75  # Score > 75% = fraud alert
 
-    # Email / Notifications
-    SMTP_HOST: Optional[str] = None
-    SMTP_PORT: int = 587
-    SMTP_USER: Optional[str] = None
-    SMTP_PASSWORD: Optional[str] = None
-    EMAILS_FROM_EMAIL: Optional[str] = None
+    # Email / Notifications (Brevo)
+    BREVO_API_KEY: Optional[str] = None
+    EMAILS_FROM_EMAIL: str = "noreply@taxup.gn"
+    EMAILS_FROM_NAME: str = "TAXUP — Plateforme Fiscale"
 
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 60
