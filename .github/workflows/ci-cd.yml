@@ -28,7 +28,7 @@ jobs:
           cache: pip
 
       - name: Install linting tools
-        run: pip install ruff mypy
+        run: pip install -r requirements-dev.txt
 
       - name: Run Ruff linter
         run: ruff check app/ tests/
@@ -136,7 +136,7 @@ jobs:
           cache: pip
 
       - name: Install security tools
-        run: pip install bandit safety
+        run: pip install -r requirements-dev.txt
 
       - name: Run Bandit (SAST)
         run: bandit -r app/ -ll -x app/workers/tasks.py
