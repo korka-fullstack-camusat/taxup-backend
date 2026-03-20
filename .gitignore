@@ -27,8 +27,8 @@ secrets/
 *.pem
 *.key
 
-# Environment
-!.env
+# Environment — .env contient des secrets, ne jamais commiter
+.env
 !.env.example
 
 # IDEs
