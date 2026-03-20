@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserLogin, UserUpdate, UserAdminResponse
 from app.schemas.common import TokenResponse, MessageResponse
 from app.services.auth_service import AuthService
+from app.services.email_service import send_welcome_email
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -20,8 +21,14 @@ async def register(
     db: AsyncSession = Depends(get_db),
     _: None = Depends(rate_limit),
 ):
-    """Register a new user account."""
-    return await AuthService.create_user(db, user_data)
+    """Register a new user account. Sends a welcome email after creation."""
+    new_user = await AuthService.create_user(db, user_data)
+    await send_welcome_email(
+        to_email=new_user.email,
+        full_name=new_user.full_name,
+        username=new_user.username,
+    )
+    return new_user
 
 
 @router.post("/login", response_model=TokenResponse)

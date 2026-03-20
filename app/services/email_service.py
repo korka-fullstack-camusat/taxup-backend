@@ -163,6 +163,60 @@ async def send_account_created_email(
     )
 
 
+async def send_welcome_email(
+    to_email: str,
+    full_name: str,
+    username: str,
+) -> bool:
+    """Send welcome email after self-registration."""
+    content = f"""
+      <h2 style="margin:0 0 8px;color:#1e3a5f;font-size:20px;">Bienvenue sur TAXUP, {full_name.split()[0]} !</h2>
+      <p style="margin:0 0 24px;color:#64748b;font-size:14px;">
+        Votre compte a été créé avec succès. Vous pouvez dès maintenant vous connecter à la plateforme.
+      </p>
+
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-bottom:24px;">
+        <tr>
+          <td style="padding:20px 24px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding:6px 0;">
+                  <span style="color:#64748b;font-size:13px;">Nom complet</span><br/>
+                  <strong style="color:#1e3a5f;font-size:15px;">{full_name}</strong>
+                </td>
+              </tr>
+              <tr><td style="border-top:1px solid #dbeafe;padding:6px 0 0;"></td></tr>
+              <tr>
+                <td style="padding:6px 0;">
+                  <span style="color:#64748b;font-size:13px;">Identifiant de connexion</span><br/>
+                  <strong style="color:#1e3a5f;font-size:15px;">{username}</strong>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px 18px;margin-bottom:24px;">
+        <p style="margin:0;color:#166534;font-size:13px;">
+          <strong>Conseil :</strong> Pour la sécurité de votre compte, utilisez un mot de passe unique et ne le partagez jamais.
+        </p>
+      </div>
+
+      <div style="text-align:center;">
+        <a href="https://taxup.gn/login" style="display:inline-block;background:#1e40af;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:14px 32px;border-radius:8px;">
+          Accéder à mon compte
+        </a>
+      </div>
+    """
+    return await _send(
+        to_email,
+        full_name,
+        "Bienvenue sur TAXUP — Compte créé avec succès",
+        _base_template(content),
+    )
+
+
 async def send_account_deactivated_email(to_email: str, full_name: str) -> bool:
     """Send email when an account is deactivated."""
     content = f"""
