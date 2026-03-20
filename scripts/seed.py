@@ -6,8 +6,8 @@ Crée des utilisateurs, transactions, reçus, audits, alertes de fraude
 et notifications pour tester toutes les fonctionnalités par rôle.
 
 Usage :
-    # Depuis la racine du backend (Docker) :
-    docker compose exec backend python scripts/seed.py
+    # Depuis la racine du backend (Docker) — service = "api" :
+    docker compose exec api python scripts/seed.py
 
     # En local (après avoir configuré DATABASE_URL) :
     DATABASE_URL=postgresql://... python scripts/seed.py
@@ -34,7 +34,11 @@ import json
 from datetime import datetime, timedelta, timezone
 
 import asyncpg
-import bcrypt
+import warnings
+warnings.filterwarnings("ignore", ".*error reading bcrypt version.*")
+from passlib.context import CryptContext
+
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 # ── Connexion ─────────────────────────────────────────────────────────────────
@@ -50,7 +54,7 @@ def get_db_url() -> str:
 # ── Hachage mot de passe ──────────────────────────────────────────────────────
 
 def hash_password(plain: str) -> str:
-    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt(rounds=12)).decode()
+    return _pwd.hash(plain)
 
 
 # ── Helpers date ──────────────────────────────────────────────────────────────
