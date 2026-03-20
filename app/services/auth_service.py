@@ -62,7 +62,11 @@ class AuthService:
 
     @staticmethod
     async def authenticate(db: AsyncSession, username: str, password: str) -> User:
-        user = await AuthService.get_user_by_username(db, username)
+        # Support login by email or by username
+        if "@" in username:
+            user = await AuthService.get_user_by_email(db, username)
+        else:
+            user = await AuthService.get_user_by_username(db, username)
         if not user or not verify_password(password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

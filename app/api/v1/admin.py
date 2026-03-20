@@ -10,6 +10,11 @@ from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.user import User, UserRole
 from app.schemas.user import UserCreate, UserAdminUpdate, UserResponse, PaginatedUsers
+from app.services.email_service import (
+    send_account_created_email,
+    send_account_activated_email,
+    send_account_deactivated_email,
+)
 
 router = APIRouter(prefix="/users", tags=["Admin - User Management"])
 
@@ -65,9 +70,22 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     _: User = _admin_only,
 ):
-    """Create a new user account (admin only)."""
+    """Create a new user account (admin only). Sends welcome email with credentials."""
     from app.services.auth_service import AuthService
-    return await AuthService.create_user(db, user_data)
+
+    plain_password = user_data.password
+    new_user = await AuthService.create_user(db, user_data)
+
+    # Send welcome email with credentials (non-blocking)
+    await send_account_created_email(
+        to_email=new_user.email,
+        full_name=new_user.full_name,
+        username=new_user.username,
+        password=plain_password,
+        role=new_user.role.value,
+    )
+
+    return new_user
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -139,7 +157,7 @@ async def activate_user(
     db: AsyncSession = Depends(get_db),
     _: User = _admin_only,
 ):
-    """Activate a user account (admin only)."""
+    """Activate a user account (admin only). Sends reactivation email."""
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if not user:
@@ -147,6 +165,13 @@ async def activate_user(
     user.is_active = True
     await db.flush()
     await db.refresh(user)
+
+    # Notify user
+    await send_account_activated_email(
+        to_email=user.email,
+        full_name=user.full_name,
+    )
+
     return user
 
 
@@ -156,7 +181,7 @@ async def deactivate_user(
     db: AsyncSession = Depends(get_db),
     current_admin: User = Depends(require_roles(UserRole.ADMIN)),
 ):
-    """Deactivate a user account (admin only)."""
+    """Deactivate a user account (admin only). Sends deactivation email."""
     if current_admin.id == user_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot deactivate your own account")
 
@@ -167,4 +192,11 @@ async def deactivate_user(
     user.is_active = False
     await db.flush()
     await db.refresh(user)
+
+    # Notify user
+    await send_account_deactivated_email(
+        to_email=user.email,
+        full_name=user.full_name,
+    )
+
     return user
