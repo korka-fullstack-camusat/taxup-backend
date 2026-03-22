@@ -151,10 +151,10 @@ services:
       - redis
     restart: unless-stopped
 
-  # Next.js Frontend
+  # Next.js Frontend (optionnel — docker compose --profile frontend up)
   frontend:
     build:
-      context: ../taxup-frontend
+      context: ${FRONTEND_PATH:-../taxup-frontend}
       target: production
     container_name: taxup_frontend
     restart: unless-stopped
@@ -173,6 +173,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    profiles:
+      - frontend
 
   # Flower - Celery monitoring UI (development/staging only)
   flower:
