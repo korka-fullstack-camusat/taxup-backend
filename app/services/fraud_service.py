@@ -167,6 +167,3 @@ class FraudDetectionEngine:
             "confirmed_fraud": confirmed.scalar() or 0,
             "by_type": {row[0]: row[1] for row in by_type.all()},
         }
-
-
-fraud_engine = FraudDetectionEngine()

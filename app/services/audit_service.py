@@ -71,7 +71,7 @@ class AuditService:
             query = query.where(Audit.anomaly_type == anomaly_type)
 
         count_result = await db.execute(select(func.count()).select_from(query.subquery()))
-        total = count_result.scalar()
+        total = count_result.scalar() or 0
 
         query = query.order_by(Audit.created_at.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)

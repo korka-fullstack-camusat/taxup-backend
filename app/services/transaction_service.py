@@ -34,7 +34,7 @@ class TransactionService:
         transaction = Transaction(
             reference=reference,
             operator_id=operator.id,
-            amount=float(data.amount),
+            amount=data.amount,
             currency=data.currency,
             transaction_type=data.transaction_type,
             sender_phone=data.sender_phone,
@@ -106,7 +106,7 @@ class TransactionService:
             query = query.where(Transaction.transaction_date <= date_to)
 
         count_result = await db.execute(select(func.count()).select_from(query.subquery()))
-        total = count_result.scalar()
+        total = count_result.scalar() or 0
 
         query = query.order_by(Transaction.transaction_date.desc())
         query = query.offset((page - 1) * page_size).limit(page_size)

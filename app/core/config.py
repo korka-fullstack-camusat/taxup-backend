@@ -1,8 +1,17 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict, EnvSettingsSource
 from pydantic import field_validator
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Type
 from functools import lru_cache
 import secrets
+import types
+
+
+def _forgiving_decode(self: Any, field_name: str, field_info: Any, value: Any) -> Any:
+    """Return raw string when JSON parsing fails — field_validator handles it."""
+    try:
+        return EnvSettingsSource.decode_complex_value(self, field_name, field_info, value)
+    except Exception:
+        return value
 
 
 class Settings(BaseSettings):
@@ -71,11 +80,25 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: Any,
+        env_settings: Any,
+        dotenv_settings: Any,
+        secrets_settings: Any,
+    ) -> tuple:
+        # Patch both sources so non-JSON values fall through to field_validator
+        env_settings.decode_complex_value = types.MethodType(_forgiving_decode, env_settings)
+        dotenv_settings.decode_complex_value = types.MethodType(_forgiving_decode, dotenv_settings)
+        return (init_settings, env_settings, dotenv_settings, secrets_settings)
+
     model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
         extra="ignore",
-        env_ignore_empty=True,  # ignore empty env vars → utilise la valeur par défaut
+        env_ignore_empty=True,
     )
 
 

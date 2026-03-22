@@ -52,7 +52,6 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     phone_number: Optional[str] = None
     organization: Optional[str] = None
-    is_active: Optional[bool] = None
 
 
 class UserLogin(BaseModel):

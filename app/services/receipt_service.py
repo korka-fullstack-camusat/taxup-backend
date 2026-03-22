@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status
 
 from app.models.receipt import FiscalReceipt
@@ -18,7 +19,7 @@ class ReceiptService:
     async def generate_receipt(
         db: AsyncSession, transaction: Transaction, operator: User
     ) -> FiscalReceipt:
-        # Check if receipt already exists
+        # Check if receipt already exists (pre-check to give a clear error)
         existing = await db.execute(
             select(FiscalReceipt).where(
                 FiscalReceipt.transaction_id == transaction.id
@@ -31,8 +32,8 @@ class ReceiptService:
             )
 
         tax_rate = settings.DEFAULT_TAX_RATE
-        tax_amount = round(float(transaction.amount) * tax_rate, 2)
         tax_base = float(transaction.amount)
+        tax_amount = round(tax_base * tax_rate, 2)
         total = round(tax_base + tax_amount, 2)
 
         now = datetime.now(timezone.utc)
@@ -44,7 +45,7 @@ class ReceiptService:
             str(operator.id), transaction.reference
         )
 
-        # Data to sign - deterministic payload
+        # Data to sign — deterministic payload
         sign_payload = {
             "receipt_number": receipt_number,
             "transaction_reference": transaction.reference,
@@ -80,7 +81,14 @@ class ReceiptService:
 
         # Mark transaction as completed
         transaction.status = TransactionStatus.COMPLETED
-        await db.flush()
+        try:
+            await db.flush()
+        except IntegrityError:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Receipt already exists for this transaction",
+            )
         await db.refresh(receipt)
         return receipt
 
@@ -117,7 +125,7 @@ class ReceiptService:
                 "receipt": None,
             }
 
-        # Get transaction for sign payload reconstruction
+        # Reconstruct the signed payload from stored receipt data
         tx_result = await db.execute(
             select(Transaction).where(Transaction.id == receipt.transaction_id)
         )
@@ -136,11 +144,9 @@ class ReceiptService:
         }
 
         is_valid = SignatureService.verify_signature(sign_payload, signature)
-        # Also check the stored signature matches
-        stored_valid = receipt.digital_signature == signature and is_valid
 
         return {
-            "is_valid": stored_valid or is_valid,
+            "is_valid": is_valid,
             "receipt_number": receipt_number,
             "message": "Valid fiscal receipt" if is_valid else "Invalid signature",
             "receipt": receipt if is_valid else None,

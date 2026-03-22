@@ -91,13 +91,13 @@ async def _process_transaction(transaction_id: str, operator_id: str):
             raise
 
 
-def process_transaction_async(transaction_id: str, operator_id: str):
+async def process_transaction_async(transaction_id: str, operator_id: str):
     """
-    Background task: fraud detection + receipt generation.
-    Called as FastAPI BackgroundTask (not via Celery broker) for immediate processing.
-    Can also be called via Celery for deferred processing.
+    Async background task: fraud detection + receipt generation.
+    Called as FastAPI BackgroundTask — runs in the same event loop as the app,
+    avoiding the event-loop conflicts of the sync+new_event_loop pattern.
     """
-    _run_async(_process_transaction(transaction_id, operator_id))
+    await _process_transaction(transaction_id, operator_id)
 
 
 @celery_app.task(

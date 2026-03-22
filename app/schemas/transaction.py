@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from decimal import Decimal
 from app.models.transaction import TransactionType, TransactionStatus
 
@@ -15,8 +15,10 @@ class TransactionBase(BaseModel):
     sender_name: Optional[str] = None
     receiver_name: Optional[str] = None
     external_reference: Optional[str] = None
-    metadata_: Optional[Dict[str, Any]] = None
+    metadata_: Optional[Dict[str, Any]] = Field(None, alias="metadata")
     transaction_date: datetime
+
+    model_config = {"populate_by_name": True}
 
     @field_validator("amount")
     @classmethod
@@ -42,7 +44,9 @@ class TransactionCreate(TransactionBase):
 
 class TransactionUpdate(BaseModel):
     status: Optional[TransactionStatus] = None
-    metadata_: Optional[Dict[str, Any]] = None
+    metadata_: Optional[Dict[str, Any]] = Field(None, alias="metadata")
+
+    model_config = {"populate_by_name": True}
 
 
 class TransactionResponse(TransactionBase):
@@ -53,7 +57,7 @@ class TransactionResponse(TransactionBase):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = {"from_attributes": True, "populate_by_name": True}
 
 
 class TransactionDetailResponse(TransactionResponse):

@@ -9,7 +9,7 @@ from app.api.deps import get_current_active_user, require_roles
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.models.user import User, UserRole
-from app.schemas.user import UserCreate, UserAdminUpdate, UserResponse, PaginatedUsers
+from app.schemas.user import UserCreate, UserAdminUpdate, UserResponse, UserAdminResponse, PaginatedUsers
 from app.services.email_service import (
     send_account_created_email,
     send_account_activated_email,
@@ -64,7 +64,7 @@ async def list_users(
     return PaginatedUsers(items=list(users), total=total, page=page, page_size=page_size, pages=pages)
 
 
-@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=UserAdminResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     user_data: UserCreate,
     db: AsyncSession = Depends(get_db),
@@ -88,7 +88,7 @@ async def create_user(
     return new_user
 
 
-@router.get("/{user_id}", response_model=UserResponse)
+@router.get("/{user_id}", response_model=UserAdminResponse)
 async def get_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -102,7 +102,7 @@ async def get_user(
     return user
 
 
-@router.put("/{user_id}", response_model=UserResponse)
+@router.put("/{user_id}", response_model=UserAdminResponse)
 async def update_user(
     user_id: uuid.UUID,
     update_data: UserAdminUpdate,
@@ -151,7 +151,7 @@ async def delete_user(
     await db.flush()
 
 
-@router.patch("/{user_id}/activate", response_model=UserResponse)
+@router.patch("/{user_id}/activate", response_model=UserAdminResponse)
 async def activate_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -175,7 +175,7 @@ async def activate_user(
     return user
 
 
-@router.patch("/{user_id}/deactivate", response_model=UserResponse)
+@router.patch("/{user_id}/deactivate", response_model=UserAdminResponse)
 async def deactivate_user(
     user_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
