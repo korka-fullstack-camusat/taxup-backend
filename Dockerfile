@@ -36,6 +36,9 @@ RUN pip install --no-cache /wheels/*
 # Copy application code
 COPY --chown=taxup:taxup . .
 
+# Make migration script executable
+RUN chmod +x /app/scripts/migrate.sh
+
 # Create secrets directory
 RUN mkdir -p /run/secrets && chown taxup:taxup /run/secrets
 
