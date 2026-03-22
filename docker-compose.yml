@@ -59,7 +59,7 @@ services:
       context: .
       target: production
     container_name: taxup_migrate
-    command: ["alembic", "upgrade", "head"]
+    command: ["bash", "/app/scripts/migrate.sh"]
     env_file:
       - .env
     networks:
