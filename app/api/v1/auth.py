@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.core.security import decode_token
 from app.models.user import User
 from app.schemas.user import UserCreate, UserResponse, UserLogin, UserUpdate, UserAdminResponse
-from app.schemas.common import TokenResponse, MessageResponse
+from app.schemas.common import TokenResponse, AccessTokenResponse, MessageResponse
 from app.services.auth_service import AuthService
 from app.services.email_service import send_welcome_email
 
@@ -41,7 +41,7 @@ async def login(
     return await AuthService.login(db, credentials.username, credentials.password)
 
 
-@router.post("/refresh", response_model=dict)
+@router.post("/refresh", response_model=AccessTokenResponse)
 async def refresh_token(
     credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
     db: AsyncSession = Depends(get_db),
@@ -84,11 +84,11 @@ async def update_me(
     return await AuthService.update_user(db, current_user, update_data)
 
 
-@router.post("/rotate-api-key", response_model=dict)
+@router.post("/rotate-api-key", response_model=MessageResponse)
 async def rotate_api_key(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """Rotate the API key for the current user."""
     new_key = await AuthService.rotate_api_key(db, current_user)
-    return {"api_key": new_key, "message": "API key rotated successfully"}
+    return MessageResponse(message=f"API key updated: {new_key}")

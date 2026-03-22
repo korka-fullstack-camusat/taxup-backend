@@ -10,6 +10,11 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class AccessTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
 class MessageResponse(BaseModel):
     message: str
     success: bool = True

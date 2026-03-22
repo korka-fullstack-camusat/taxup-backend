@@ -27,7 +27,7 @@ class FiscalReceipt(Base):
     total_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), default="XOF", nullable=False)
     digital_signature: Mapped[str] = mapped_column(Text, nullable=False)
-    signature_algorithm: Mapped[str] = mapped_column(String(50), default="RSA-SHA256", nullable=False)
+    signature_algorithm: Mapped[str] = mapped_column(String(50), default="RSA-PSS-SHA256", nullable=False)
     qr_code_data: Mapped[str | None] = mapped_column(Text, nullable=True)
     fiscal_year: Mapped[int] = mapped_column(nullable=False)
     fiscal_period: Mapped[str] = mapped_column(String(10), nullable=False)  # e.g., "2024-Q1"

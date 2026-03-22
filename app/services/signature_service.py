@@ -101,6 +101,3 @@ class SignatureService:
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
         return base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-
-signature_service = SignatureService()
