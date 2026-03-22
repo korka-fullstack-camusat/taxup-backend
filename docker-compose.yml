@@ -151,6 +151,29 @@ services:
       - redis
     restart: unless-stopped
 
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ../taxup-frontend
+      target: production
+    container_name: taxup_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "3000:3000"
+    networks:
+      - taxup_net
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # Flower - Celery monitoring UI (development/staging only)
   flower:
     image: mher/flower:2.0
