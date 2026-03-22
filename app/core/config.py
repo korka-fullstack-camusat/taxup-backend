@@ -87,12 +87,13 @@ class Settings(BaseSettings):
         init_settings: Any,
         env_settings: Any,
         dotenv_settings: Any,
-        secrets_settings: Any,
+        file_secret_settings: Any,
+        **kwargs: Any,
     ) -> tuple:
         # Patch both sources so non-JSON values fall through to field_validator
         env_settings.decode_complex_value = types.MethodType(_forgiving_decode, env_settings)
         dotenv_settings.decode_complex_value = types.MethodType(_forgiving_decode, dotenv_settings)
-        return (init_settings, env_settings, dotenv_settings, secrets_settings)
+        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
 
     model_config = SettingsConfigDict(
         env_file=".env",
