@@ -17,8 +17,8 @@ class UserBase(BaseModel):
     @field_validator("username")
     @classmethod
     def validate_username(cls, v: str) -> str:
-        if not re.match(r"^[a-zA-Z0-9_-]{3,50}$", v):
-            raise ValueError("Username must be 3-50 chars, alphanumeric, _ or - only")
+        if not re.match(r"^[a-zA-Z0-9_.+-]{3,50}$", v):
+            raise ValueError("Username must be 3-50 chars, alphanumeric, _ . + or - only")
         return v
 
     @field_validator("phone_number")
