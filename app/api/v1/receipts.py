@@ -3,7 +3,7 @@ import math
 import io
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from reportlab.lib.pagesizes import A4
@@ -167,13 +167,13 @@ async def download_receipt(
     story.append(Paragraph("Plateforme Nationale d'Audit Digital Fiscal — République de Guinée", footer_style))
 
     doc.build(story)
-    buffer.seek(0)
+    pdf_bytes = buffer.getvalue()
 
     filename = f"recu-{receipt.receipt_number}.pdf"
-    return StreamingResponse(
-        buffer,
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f"attachment; filename=\"{filename}\""},
     )
 
 
