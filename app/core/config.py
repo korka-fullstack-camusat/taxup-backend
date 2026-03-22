@@ -1,6 +1,6 @@
-from pydantic_settings import BaseSettings
-from pydantic import AnyHttpUrl, field_validator
-from typing import List, Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from typing import List, Optional, Any
 from functools import lru_cache
 import secrets
 
@@ -37,12 +37,21 @@ class Settings(BaseSettings):
 
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
-    def assemble_cors_origins(cls, v):
+    def assemble_cors_origins(cls, v: Any) -> List[str]:
+        if not v:
+            return ["http://localhost:3000", "http://localhost:8080"]
+        if isinstance(v, list):
+            return v
         if isinstance(v, str):
             v = v.strip()
+            if not v:
+                return ["http://localhost:3000", "http://localhost:8080"]
             if v.startswith("["):
                 import json
-                return json.loads(v)
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
             return [i.strip() for i in v.split(",") if i.strip()]
         return v
 
@@ -62,10 +71,12 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+        env_ignore_empty=True,  # ignore empty env vars → utilise la valeur par défaut
+    )
 
 
 @lru_cache()
