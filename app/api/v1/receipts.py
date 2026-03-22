@@ -1,10 +1,17 @@
 import uuid
 import math
+import io
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
 
 from app.api.deps import get_current_active_user, require_roles
 from app.core.database import get_db
@@ -80,30 +87,92 @@ async def download_receipt(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
-    """Download a fiscal receipt as a formatted text file."""
+    """Download a fiscal receipt as a PDF file."""
     receipt = await ReceiptService.get_receipt(db, receipt_id, current_user)
     status_label = "ANNULÉ" if receipt.is_cancelled else "VALIDE"
     issued = str(receipt.issued_at)[:19].replace("T", " ")
-    lines = [
-        "=" * 50,
-        "        REÇU FISCAL — TAXUP",
-        "  Plateforme Nationale d'Audit Digital Fiscal",
-        "=" * 50,
-        f"N° Reçu       : {receipt.receipt_number}",
-        f"Période       : {receipt.fiscal_period}",
-        f"Statut        : {status_label}",
-        f"Émis le       : {issued}",
-        "-" * 50,
-        f"Montant total : {receipt.total_amount:,.0f} XOF",
-        f"Taxe ({receipt.tax_rate * 100:.1f}%)  : {receipt.tax_amount:,.0f} XOF",
-        "-" * 50,
-        f"Transaction   : {receipt.transaction_id}",
-        "=" * 50,
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=20 * mm,
+        leftMargin=20 * mm,
+        topMargin=20 * mm,
+        bottomMargin=20 * mm,
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle("title", parent=styles["Normal"], fontSize=18, fontName="Helvetica-Bold", alignment=TA_CENTER, spaceAfter=4)
+    subtitle_style = ParagraphStyle("subtitle", parent=styles["Normal"], fontSize=10, alignment=TA_CENTER, textColor=colors.HexColor("#6B7280"), spaceAfter=16)
+    label_style = ParagraphStyle("label", parent=styles["Normal"], fontSize=9, textColor=colors.HexColor("#6B7280"), fontName="Helvetica")
+    value_style = ParagraphStyle("value", parent=styles["Normal"], fontSize=11, fontName="Helvetica-Bold", textColor=colors.HexColor("#111827"))
+    status_valid_style = ParagraphStyle("status_valid", parent=styles["Normal"], fontSize=11, fontName="Helvetica-Bold", textColor=colors.HexColor("#065F46"))
+    status_cancel_style = ParagraphStyle("status_cancel", parent=styles["Normal"], fontSize=11, fontName="Helvetica-Bold", textColor=colors.HexColor("#991B1B"))
+    amount_label_style = ParagraphStyle("amount_label", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor("#6B7280"))
+    amount_value_style = ParagraphStyle("amount_value", parent=styles["Normal"], fontSize=14, fontName="Helvetica-Bold", textColor=colors.HexColor("#1D4ED8"), alignment=TA_CENTER)
+    footer_style = ParagraphStyle("footer", parent=styles["Normal"], fontSize=8, textColor=colors.HexColor("#9CA3AF"), alignment=TA_CENTER)
+
+    story = []
+
+    # Header
+    story.append(Paragraph("REÇU FISCAL", title_style))
+    story.append(Paragraph("Plateforme Nationale d'Audit Digital Fiscal — TAXUP", subtitle_style))
+    story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor("#1D4ED8")))
+    story.append(Spacer(1, 10 * mm))
+
+    # Info table
+    status_style = status_cancel_style if receipt.is_cancelled else status_valid_style
+    info_data = [
+        [Paragraph("N° Reçu", label_style),       Paragraph(receipt.receipt_number, value_style),
+         Paragraph("Statut", label_style),         Paragraph(status_label, status_style)],
+        [Paragraph("Période fiscale", label_style), Paragraph(receipt.fiscal_period, value_style),
+         Paragraph("Émis le", label_style),        Paragraph(issued, value_style)],
+        [Paragraph("Transaction", label_style),    Paragraph(str(receipt.transaction_id), ParagraphStyle("small", parent=styles["Normal"], fontSize=8, textColor=colors.HexColor("#374151"))),
+         Paragraph("", label_style),               Paragraph("", label_style)],
     ]
-    content = "\n".join(lines) + "\n"
-    filename = f"recu-{receipt.receipt_number}.txt"
-    return PlainTextResponse(
-        content=content,
+    info_table = Table(info_data, colWidths=[35 * mm, 65 * mm, 30 * mm, 40 * mm])
+    info_table.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 2),
+    ]))
+    story.append(info_table)
+    story.append(Spacer(1, 8 * mm))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#E5E7EB")))
+    story.append(Spacer(1, 8 * mm))
+
+    # Amounts
+    amounts_data = [
+        [Paragraph("Montant total", amount_label_style), Paragraph(f"Taxe ({receipt.tax_rate * 100:.1f}%)", amount_label_style)],
+        [Paragraph(f"{receipt.total_amount:,.0f} XOF", amount_value_style), Paragraph(f"{receipt.tax_amount:,.0f} XOF", ParagraphStyle("tax_val", parent=styles["Normal"], fontSize=14, fontName="Helvetica-Bold", textColor=colors.HexColor("#059669"), alignment=TA_CENTER))],
+    ]
+    amounts_table = Table(amounts_data, colWidths=[85 * mm, 85 * mm])
+    amounts_table.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND", (0, 0), (0, 1), colors.HexColor("#EFF6FF")),
+        ("BACKGROUND", (1, 0), (1, 1), colors.HexColor("#ECFDF5")),
+        ("ROUNDEDCORNERS", [6, 6, 6, 6]),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    story.append(amounts_table)
+    story.append(Spacer(1, 12 * mm))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#E5E7EB")))
+    story.append(Spacer(1, 6 * mm))
+
+    # Footer
+    story.append(Paragraph("Ce document est un reçu fiscal officiel généré par la plateforme TAXUP.", footer_style))
+    story.append(Paragraph("Plateforme Nationale d'Audit Digital Fiscal — République de Guinée", footer_style))
+
+    doc.build(story)
+    buffer.seek(0)
+
+    filename = f"recu-{receipt.receipt_number}.pdf"
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
