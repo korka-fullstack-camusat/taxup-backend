@@ -14,13 +14,6 @@ class UserBase(BaseModel):
     phone_number: Optional[str] = None
     organization: Optional[str] = None
 
-    @field_validator("username")
-    @classmethod
-    def validate_username(cls, v: str) -> str:
-        if not re.match(r"^[a-zA-Z0-9_.+-]{3,50}$", v):
-            raise ValueError("Username must be 3-50 chars, alphanumeric, _ . + or - only")
-        return v
-
     @field_validator("phone_number")
     @classmethod
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
@@ -31,6 +24,13 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        if not re.match(r"^[a-zA-Z0-9_.+-]{3,50}$", v):
+            raise ValueError("Username must be 3-50 chars, alphanumeric, _ . + or - only")
+        return v
 
     @field_validator("password")
     @classmethod
