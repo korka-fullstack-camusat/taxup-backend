@@ -129,3 +129,156 @@ async def get_fiscal_reports(db: AsyncSession = Depends(get_db)):
             for row in by_period.all()
         ]
     }
+
+
+@router.get(
+    "/evolution",
+    dependencies=[Depends(require_roles(UserRole.AGENT_DGID, UserRole.ADMIN))],
+)
+async def get_evolution_data(
+    days: int = 30,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get daily evolution data for the last N days.
+    Returns daily transaction counts, volumes, fraud alerts, and new users.
+    """
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    # Daily transactions
+    tx_daily = await db.execute(
+        select(
+            func.date(Transaction.created_at).label("day"),
+            func.count(Transaction.id),
+            func.coalesce(func.sum(Transaction.amount), 0),
+        )
+        .where(Transaction.created_at >= cutoff)
+        .group_by(func.date(Transaction.created_at))
+        .order_by(func.date(Transaction.created_at))
+    )
+    tx_rows = tx_daily.all()
+
+    # Daily fraud alerts
+    fraud_daily = await db.execute(
+        select(
+            func.date(FraudAlert.detected_at).label("day"),
+            func.count(FraudAlert.id),
+        )
+        .where(FraudAlert.detected_at >= cutoff)
+        .group_by(func.date(FraudAlert.detected_at))
+        .order_by(func.date(FraudAlert.detected_at))
+    )
+    fraud_rows = {str(r[0]): r[1] for r in fraud_daily.all()}
+
+    # Daily new users
+    user_daily = await db.execute(
+        select(
+            func.date(User.created_at).label("day"),
+            func.count(User.id),
+        )
+        .where(User.created_at >= cutoff)
+        .group_by(func.date(User.created_at))
+        .order_by(func.date(User.created_at))
+    )
+    user_rows = {str(r[0]): r[1] for r in user_daily.all()}
+
+    # Daily receipts tax
+    receipt_daily = await db.execute(
+        select(
+            func.date(FiscalReceipt.issued_at).label("day"),
+            func.count(FiscalReceipt.id),
+            func.coalesce(func.sum(FiscalReceipt.tax_amount), 0),
+        )
+        .where(FiscalReceipt.issued_at >= cutoff, FiscalReceipt.is_cancelled == False)
+        .group_by(func.date(FiscalReceipt.issued_at))
+        .order_by(func.date(FiscalReceipt.issued_at))
+    )
+    receipt_rows = {str(r[0]): {"count": r[1], "tax": float(r[2])} for r in receipt_daily.all()}
+
+    evolution = []
+    for row in tx_rows:
+        day_str = str(row[0])
+        evolution.append({
+            "date": day_str,
+            "transactions": row[1],
+            "volume": float(row[2]),
+            "fraud_alerts": fraud_rows.get(day_str, 0),
+            "new_users": user_rows.get(day_str, 0),
+            "receipts": receipt_rows.get(day_str, {}).get("count", 0),
+            "tax_collected": receipt_rows.get(day_str, {}).get("tax", 0),
+        })
+
+    return {"days": days, "evolution": evolution}
+
+
+@router.get(
+    "/admin-summary",
+    dependencies=[Depends(require_roles(UserRole.ADMIN))],
+)
+async def get_admin_summary(db: AsyncSession = Depends(get_db)):
+    """
+    Complete admin summary with user stats, transaction stats,
+    fraud breakdown, audit breakdown, and top-level KPIs.
+    """
+    # User stats
+    total_users = await db.execute(select(func.count(User.id)))
+    active_users = await db.execute(
+        select(func.count(User.id)).where(User.is_active == True)
+    )
+    users_by_role = await db.execute(
+        select(User.role, func.count(User.id)).group_by(User.role)
+    )
+
+    # Transaction stats
+    tx_stats = await TransactionService.get_dashboard_stats(db)
+
+    # Fraud stats
+    fraud_stats = await FraudDetectionEngine.get_fraud_stats(db)
+    pending_fraud = await db.execute(
+        select(func.count(FraudAlert.id)).where(
+            FraudAlert.status == FraudStatus.DETECTED
+        )
+    )
+
+    # Audit stats
+    audit_stats = await AuditService.get_audit_statistics(db)
+
+    # Fiscal stats
+    month_start = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0)
+    tax_result = await db.execute(
+        select(func.sum(FiscalReceipt.tax_amount)).where(
+            FiscalReceipt.issued_at >= month_start,
+            FiscalReceipt.is_cancelled == False,
+        )
+    )
+    total_receipts = await db.execute(select(func.count(FiscalReceipt.id)))
+    total_tax_all = await db.execute(
+        select(func.sum(FiscalReceipt.tax_amount)).where(
+            FiscalReceipt.is_cancelled == False
+        )
+    )
+    total_volume_all = await db.execute(
+        select(func.sum(FiscalReceipt.total_amount)).where(
+            FiscalReceipt.is_cancelled == False
+        )
+    )
+
+    return {
+        "users": {
+            "total": total_users.scalar() or 0,
+            "active": active_users.scalar() or 0,
+            "by_role": {str(r[0].value) if hasattr(r[0], 'value') else str(r[0]): r[1] for r in users_by_role.all()},
+        },
+        "transactions": tx_stats,
+        "fraud": {
+            **fraud_stats,
+            "pending_alerts": pending_fraud.scalar() or 0,
+        },
+        "audits": audit_stats,
+        "fiscal": {
+            "total_receipts": total_receipts.scalar() or 0,
+            "month_tax_collected_xof": float(tax_result.scalar() or 0),
+            "total_tax_collected_xof": float(total_tax_all.scalar() or 0),
+            "total_volume_xof": float(total_volume_all.scalar() or 0),
+        },
+    }
