@@ -1,0 +1,191 @@
+# ── Secrets (clés RSA uniquement — utilisées par l'API pour signer les reçus)
+secrets:
+  private_key:
+    file: ./secrets/private_key.pem
+  public_key:
+    file: ./secrets/public_key.pem
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  taxup_net:
+    driver: bridge
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  postgres_data:
+  redis_data:
+
+# ── Services ──────────────────────────────────────────────────────────────────
+services:
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: taxup_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taxup
+      POSTGRES_USER: taxup_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - taxup_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taxup_user -d taxup"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache & Broker
+  redis:
+    image: redis:7-alpine
+    container_name: taxup_redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - taxup_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Database migrations (runs once then exits)
+  migrate:
+    build:
+      context: .
+      target: production
+    container_name: taxup_migrate
+    command: ["bash", "/app/scripts/migrate.sh"]
+    env_file:
+      - .env
+    networks:
+      - taxup_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  # FastAPI Application
+  api:
+    build:
+      context: .
+      target: production
+    container_name: taxup_api
+    restart: unless-stopped
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PRIVATE_KEY_PATH: /run/secrets/private_key
+      PUBLIC_KEY_PATH: /run/secrets/public_key
+    env_file:
+      - .env
+    secrets:
+      - private_key
+      - public_key
+    ports:
+      - "8000:8000"
+    networks:
+      - taxup_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # Celery Worker
+  worker:
+    build:
+      context: .
+      target: production
+    container_name: taxup_worker
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info", "-Q", "transactions,notifications,reports", "--concurrency=4"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      PRIVATE_KEY_PATH: /run/secrets/private_key
+      PUBLIC_KEY_PATH: /run/secrets/public_key
+    env_file:
+      - .env
+    secrets:
+      - private_key
+      - public_key
+    networks:
+      - taxup_net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Celery Beat Scheduler
+  beat:
+    build:
+      context: .
+      target: production
+    container_name: taxup_beat
+    command: ["celery", "-A", "app.workers.celery_app", "beat", "--loglevel=info"]
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+    env_file:
+      - .env
+    networks:
+      - taxup_net
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  # Next.js Frontend (optionnel — docker compose --profile frontend up)
+  frontend:
+    build:
+      context: ${FRONTEND_PATH:-../taxup-frontend}
+      target: production
+    container_name: taxup_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    ports:
+      - "3000:3000"
+    networks:
+      - taxup_net
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    profiles:
+      - frontend
+
+  # Flower - Celery monitoring UI (development/staging only)
+  flower:
+    image: mher/flower:2.0
+    container_name: taxup_flower
+    command: ["celery", "--broker=redis://redis:6379/1", "flower", "--port=5555"]
+    ports:
+      - "5555:5555"
+    networks:
+      - taxup_net
+    depends_on:
+      - redis
+    profiles:
+      - monitoring

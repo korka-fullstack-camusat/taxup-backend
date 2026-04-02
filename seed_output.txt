@@ -1,0 +1,51 @@
+📦 Connexion DB : postgresql://taxup_user:3db806ec1b2850118903c9f858...
+🗑  Nettoyage des tables...
+👤 Création de l'admin...
+   ✓ admin@taxup.sn créé (id=524df5a0-9336-45aa-8d30-7fd8a8724b71)
+
+🔑 Connexion admin...
+   ✓ Connecté en tant qu'admin
+
+👥 Création des utilisateurs...
+   ✓ AGENT_DGID           agent_diallo@dgid.sn
+   ✓ AGENT_DGID           agent_sow@dgid.sn
+   ✓ AUDITEUR_FISCAL      auditeur_fall@taxup.sn
+   ✓ AUDITEUR_FISCAL      auditeur_ndiaye@taxup.sn
+   ✓ OPERATEUR_MOBILE     wave_sn@taxup.sn
+   ✓ OPERATEUR_MOBILE     orangemoney@taxup.sn
+   ✓ OPERATEUR_MOBILE     freemoney@taxup.sn
+   ✓ CITOYEN              amadou_ba@gmail.com
+   ✓ CITOYEN              fatou_mbaye@gmail.com
+
+💸 Création des transactions (35 par opérateur)...
+   ✓ wave_sn : 0/35 transactions créées
+   ✓ orangemoney : 0/35 transactions créées
+   ✓ freemoney : 0/35 transactions créées
+
+🔍 Création des audits...
+   ✓ 15/15 audits créés
+
+🔔 Vérification des notifications...
+
+=================================================================
+✅ BASE DE DONNÉES INITIALISÉE AVEC SUCCÈS
+=================================================================
+  Transactions créées : ~0
+  Audits créés        : 15
+  (Reçus & alertes fraude générés automatiquement en arrière-plan)
+
+  Comptes de test :
+  Rôle                 Email                          Mot de passe
+  ----------------------------------------------------------------------
+  ADMIN                admin@taxup.sn                 Admin@2026!
+  AGENT_DGID           agent_diallo@dgid.sn           Agent@2026!
+  AGENT_DGID           agent_sow@dgid.sn              Agent@2026!
+  AUDITEUR_FISCAL      auditeur_fall@taxup.sn         Audit@2026!
+  AUDITEUR_FISCAL      auditeur_ndiaye@taxup.sn       Audit@2026!
+  OPERATEUR_MOBILE     wave_sn@taxup.sn               Oper@2026!
+  OPERATEUR_MOBILE     orangemoney@taxup.sn           Oper@2026!
+  OPERATEUR_MOBILE     freemoney@taxup.sn             Oper@2026!
+  CITOYEN              amadou_ba@gmail.com            Citoyen@2026!
+  CITOYEN              fatou_mbaye@gmail.com          Citoyen@2026!
+=================================================================
+

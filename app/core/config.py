@@ -1,0 +1,111 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict, EnvSettingsSource
+from pydantic import field_validator
+from typing import List, Optional, Any, Type
+from functools import lru_cache
+import secrets
+import types
+
+
+def _forgiving_decode(self: Any, field_name: str, field_info: Any, value: Any) -> Any:
+    """Return raw string when JSON parsing fails — field_validator handles it."""
+    try:
+        return EnvSettingsSource.decode_complex_value(self, field_name, field_info, value)
+    except Exception:
+        return value
+
+
+class Settings(BaseSettings):
+    # App
+    APP_NAME: str = "TAXUP"
+    APP_VERSION: str = "1.0.0"
+    DEBUG: bool = False
+    ENVIRONMENT: str = "production"
+
+    # API
+    API_V1_STR: str = "/api/v1"
+    SECRET_KEY: str = secrets.token_urlsafe(32)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    ALGORITHM: str = "HS256"
+
+    # Database
+    DATABASE_URL: str
+    DATABASE_POOL_SIZE: int = 10
+    DATABASE_MAX_OVERFLOW: int = 20
+
+    # Redis
+    REDIS_URL: str = "redis://redis:6379/0"
+    REDIS_CACHE_TTL: int = 300  # 5 minutes
+
+    # Celery
+    CELERY_BROKER_URL: str = "redis://redis:6379/1"
+    CELERY_RESULT_BACKEND: str = "redis://redis:6379/2"
+
+    # CORS
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:8080"]
+
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def assemble_cors_origins(cls, v: Any) -> List[str]:
+        if not v:
+            return ["http://localhost:3000", "http://localhost:8080"]
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            v = v.strip()
+            if not v:
+                return ["http://localhost:3000", "http://localhost:8080"]
+            if v.startswith("["):
+                import json
+                try:
+                    return json.loads(v)
+                except Exception:
+                    pass
+            return [i.strip() for i in v.split(",") if i.strip()]
+        return v
+
+    # Security - Digital Signature
+    PRIVATE_KEY_PATH: str = "/run/secrets/private_key"
+    PUBLIC_KEY_PATH: str = "/run/secrets/public_key"
+
+    # Tax configuration
+    DEFAULT_TAX_RATE: float = 0.18  # 18% TVA
+    FRAUD_RISK_THRESHOLD: float = 0.75  # Score > 75% = fraud alert
+
+    # Email / Notifications (Brevo)
+    BREVO_API_KEY: Optional[str] = None
+    EMAILS_FROM_EMAIL: str = "noreply@taxup.gn"
+    EMAILS_FROM_NAME: str = "TAXUP — Plateforme Fiscale"
+
+    # Rate limiting
+    RATE_LIMIT_PER_MINUTE: int = 60
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: Any,
+        env_settings: Any,
+        dotenv_settings: Any,
+        file_secret_settings: Any,
+        **kwargs: Any,
+    ) -> tuple:
+        # Patch both sources so non-JSON values fall through to field_validator
+        env_settings.decode_complex_value = types.MethodType(_forgiving_decode, env_settings)
+        dotenv_settings.decode_complex_value = types.MethodType(_forgiving_decode, dotenv_settings)
+        return (init_settings, env_settings, dotenv_settings, file_secret_settings)
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+        env_ignore_empty=True,
+    )
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
