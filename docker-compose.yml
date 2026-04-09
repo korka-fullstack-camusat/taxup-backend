@@ -156,10 +156,10 @@ services:
     build:
       context: ${FRONTEND_PATH:-../taxup-frontend}
       target: production
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: taxup_frontend
     restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
     ports:
       - "3000:3000"
     networks:
