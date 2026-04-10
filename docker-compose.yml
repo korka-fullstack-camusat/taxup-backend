@@ -156,10 +156,12 @@ services:
     build:
       context: ${FRONTEND_PATH:-../taxup-frontend}
       target: production
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     container_name: taxup_frontend
     restart: unless-stopped
+    environment:
+      # BACKEND_URL est lu côté serveur Next.js pour le proxy rewrites
+      # Pas besoin de NEXT_PUBLIC_* — évite les problèmes de build-time baking
+      BACKEND_URL: http://api:8000
     ports:
       - "3000:3000"
     networks:
