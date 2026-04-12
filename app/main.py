@@ -42,7 +42,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware ────────────────────────────────────────────────────────────────
+# ── Middleware ────────────────────────────────────────────────────────────────────
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,9 +52,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Allow all hosts — the app is served by IP (no domain yet).
+# Origin security is handled by CORSMiddleware above.
 app.add_middleware(
     TrustedHostMiddleware,
-    allowed_hosts=["*"] if settings.DEBUG else ["taxup.gov", "*.taxup.gov", "localhost"],
+    allowed_hosts=["*"],
 )
 
 
@@ -78,7 +80,7 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-# ── Exception handlers ────────────────────────────────────────────────────────
+# ── Exception handlers ────────────────────────────────────────────────────────────
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
@@ -104,7 +106,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ── Routes ────────────────────────────────────────────────────────────────────
+# ── Routes ──────────────────────────────────────────────────────────────────────────
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
