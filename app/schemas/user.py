@@ -17,9 +17,13 @@ class UserBase(BaseModel):
     @field_validator("phone_number")
     @classmethod
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
-        if v and not re.match(r"^\+?[0-9]{8,15}$", v):
-            raise ValueError("Invalid phone number format")
-        return v
+        if not v:
+            return v
+        # Normalize: strip spaces, hyphens, dots, parentheses
+        cleaned = re.sub(r"[\s\-\.\(\)]", "", v)
+        if not re.match(r"^\+?[0-9]{8,15}$", cleaned):
+            raise ValueError("Num\u00e9ro de t\u00e9l\u00e9phone invalide (ex\u202f: +221771001001)")
+        return cleaned
 
 
 class UserCreate(UserBase):
@@ -36,15 +40,7 @@ class UserCreate(UserBase):
     @classmethod
     def validate_password(cls, v: str) -> str:
         if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        if not re.search(r"[A-Z]", v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not re.search(r"[a-z]", v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not re.search(r"\d", v):
-            raise ValueError("Password must contain at least one digit")
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
-            raise ValueError("Password must contain at least one special character")
+            raise ValueError("Le mot de passe doit contenir au moins 8 caract\u00e8res")
         return v
 
 
@@ -86,8 +82,19 @@ class UserAdminUpdate(BaseModel):
     @field_validator("phone_number")
     @classmethod
     def validate_phone(cls, v: Optional[str]) -> Optional[str]:
-        if v and not re.match(r"^\+?[0-9]{8,15}$", v):
-            raise ValueError("Invalid phone number format")
+        if not v:
+            return v
+        # Normalize: strip spaces, hyphens, dots, parentheses
+        cleaned = re.sub(r"[\s\-\.\(\)]", "", v)
+        if not re.match(r"^\+?[0-9]{8,15}$", cleaned):
+            raise ValueError("Num\u00e9ro de t\u00e9l\u00e9phone invalide (ex\u202f: +221771001001)")
+        return cleaned
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and len(v) < 8:
+            raise ValueError("Le mot de passe doit contenir au moins 8 caract\u00e8res")
         return v
 
 
