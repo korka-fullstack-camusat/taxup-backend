@@ -5,17 +5,17 @@ secrets:
   public_key:
     file: ./secrets/public_key.pem
 
-# ── Networks ──────────────────────────────────────────────────────────────────
+# ── Networks ────────────────────────────────────────────────────────────────
 networks:
   taxup_net:
     driver: bridge
 
-# ── Volumes ───────────────────────────────────────────────────────────────────
+# ── Volumes ────────────────────────────────────────────────────────────────
 volumes:
   postgres_data:
   redis_data:
 
-# ── Services ──────────────────────────────────────────────────────────────────
+# ── Services ───────────────────────────────────────────────────────────────
 services:
 
   # PostgreSQL Database
@@ -159,7 +159,8 @@ services:
     container_name: taxup_frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+      # URL de l'API vue depuis le navigateur (IP publique du serveur, sans /api/v1)
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
     networks:
