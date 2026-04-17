@@ -3,7 +3,6 @@
 TAXUP — Script de données de test (seed)
 =========================================
 Stratégie :
-<<<<<<< HEAD
   1. Insère l'admin directement en base.
   2. Crée tous les autres utilisateurs via l'API.
   3. LOT A : Transactions normales (petits montants) via API
@@ -11,24 +10,14 @@ Stratégie :
              → reçus fiscaux à 18% générés automatiquement
   4. LOT B : Transactions suspectes injectées directement en base
              avec created_at dans le passé (hors fenêtre velocity)
-             → fraud_service déclenché manuellement sur ces tx
+             → alertes fraude insérées en base (LARGE_AMOUNT,
+               STRUCTURING, ROUND_TRIPPING).
   5. Crée les audits via l'API.
-=======
-  1. Insère l'admin directement en base (via get_password_hash de l'app).
-  2. Se connecte à l'API en tant qu'admin.
-  3. Crée tous les autres utilisateurs via POST /api/v1/users.
-  4. Crée les transactions, audits, etc. via les vrais endpoints.
-  → Les mots de passe sont hachés par le backend lui-même : connexion garantie.
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 
 Usage :
     docker compose exec api python scripts/seed.py
 
-<<<<<<< HEAD
 Comptes de test :
-=======
-Comptes créés :
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
     ADMIN            admin@taxup.sn              Admin@2026!
     AGENT_DGID       agent_diallo@dgid.sn        Agent@2026!
     AGENT_DGID       agent_sow@dgid.sn           Agent@2026!
@@ -46,14 +35,12 @@ import os
 sys.path.insert(0, "/app")
 
 import asyncio
+import json
 import random
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
-<<<<<<< HEAD
 from decimal import Decimal
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 
 import asyncpg
 import httpx
@@ -66,10 +53,7 @@ BASE_URL = os.getenv("SEED_API_URL", "http://localhost:8000/api/v1")
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "Admin@2026!"
 
-<<<<<<< HEAD
 # Numéros de téléphone simulés
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 PHONES = [
     "+224621000001", "+224621000002", "+224621000003", "+224621000004",
     "+224621000005", "+224621000006", "+224621000007", "+224621000008",
@@ -78,7 +62,6 @@ PHONES = [
 ]
 
 TX_TYPES = ["TRANSFERT", "PAIEMENT", "RETRAIT", "DEPOT", "REMBOURSEMENT"]
-<<<<<<< HEAD
 TX_TYPE_WEIGHTS = [100, 30, 15, 15, 5]
 
 # Montants "normaux" (< 500 000 XOF) → ne déclenchent pas LARGE_AMOUNT
@@ -92,19 +75,6 @@ NORMAL_AMOUNTS = [
 SUSPICIOUS_AMOUNTS = [
     1_000_000, 1_500_000, 2_000_000, 2_500_000, 5_000_000,
     7_500_000, 10_000_000, 15_000_000, 25_000_000,
-=======
-TX_TYPE_WEIGHTS = [35, 30, 15, 15, 5]
-
-AMOUNTS = [
-    5_000, 10_000, 25_000, 50_000, 75_000,
-    100_000, 250_000, 500_000, 750_000,
-    1_000_000, 2_500_000, 5_000_000,
-]
-
-ANOMALY_TYPES = [
-    "MONTANT_SUSPECT", "FREQUENCE_ANORMALE", "IDENTITE_DOUTEUSE",
-    "DOUBLE_TRANSACTION", "EVASION_FISCALE", "BLANCHIMENT", "AUTRE",
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 ]
 
 AUDIT_TITLES = [
@@ -127,29 +97,18 @@ AUDIT_TITLES = [
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-<<<<<<< HEAD
 def rand_past_date(days_ago_min: int = 1, days_ago_max: int = 180) -> datetime:
     """Date dans le passé (entre days_ago_min et days_ago_max jours en arrière)."""
     delta_minutes = random.randint(days_ago_min * 1440, days_ago_max * 1440)
     return datetime.now(timezone.utc) - timedelta(minutes=delta_minutes)
-=======
-def rand_date(days_back: int = 180) -> str:
-    dt = datetime.now(timezone.utc) - timedelta(minutes=random.randint(0, days_back * 1440))
-    return dt.isoformat()
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 
 def rand_phone() -> str:
     return random.choice(PHONES)
 
-<<<<<<< HEAD
 def rand_ref(prefix: str = "TXN") -> str:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     rand = secrets.token_hex(4).upper()
     return f"{prefix}-{ts}-{rand}"
-=======
-def rand_amount() -> str:
-    return str(float(random.choice(AMOUNTS)))
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 
 def get_db_url() -> str:
     url = os.getenv("DATABASE_URL", "")
@@ -223,12 +182,7 @@ async def run() -> None:
             ("fatou_mbaye",    "fatou_mbaye@gmail.com",       "Fatou Mbaye",             "CITOYEN",          "+224620000002", None,                     "Citoyen@2026!"),
         ]
 
-<<<<<<< HEAD
-        operator_ids = {}  # username → UUID
-=======
-        user_tokens: dict[str, str] = {}  # username → access_token
-        tx_ids: list[str] = []
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
+        operator_ids: dict[str, str] = {}  # username → UUID
 
         for (uname, email, fname, role, phone, org, pwd) in other_users:
             payload = {
@@ -244,7 +198,6 @@ async def run() -> None:
                 continue
             print(f"   ✓ {role:<20} {email}")
 
-<<<<<<< HEAD
         # Récupérer les IDs des opérateurs
         r_users = await client.get("/users", headers=ah, params={"page_size": 50})
         if r_users.status_code == 200:
@@ -254,23 +207,16 @@ async def run() -> None:
 
         # ── 5a. LOT A : Transactions normales via API ─────────────────────────
         # Petits montants espacés → pas de velocity alert → génèrent des reçus
-        print("\n💸 LOT A — Transactions normales (40 par opérateur, petits montants)...")
-=======
-        # ── 5. Login des opérateurs → transactions ────────────────────────────
-        print("\n💸 Création des transactions (35 par opérateur)...")
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
+        print("\n💸 LOT A — Transactions normales (petits montants, reçus fiscaux 18%)...")
         operators = [
             ("wave_sn",     "Oper@2026!"),
             ("orangemoney", "Oper@2026!"),
             ("freemoney",   "Oper@2026!"),
         ]
 
-<<<<<<< HEAD
         tx_ids: list[str] = []
         user_tokens: dict[str, str] = {}
 
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
         for (uname, pwd) in operators:
             r = await client.post("/auth/login", json={"username": uname, "password": pwd})
             if r.status_code != 200:
@@ -281,8 +227,7 @@ async def run() -> None:
             user_tokens[uname] = op_token
 
             count = 0
-<<<<<<< HEAD
-            for _ in range(200):
+            for _ in range(40):
                 sender = rand_phone()
                 receiver = random.choice([p for p in PHONES if p != sender])
                 # Montants petits pour éviter LARGE_AMOUNT → reçus générés
@@ -291,38 +236,26 @@ async def run() -> None:
                 tx_date = rand_past_date(days_ago_min=2, days_ago_max=120)
                 r2 = await client.post("/transactions", headers=op_h, json={
                     "amount": str(float(amount)),
-=======
-            for _ in range(35):
-                sender = rand_phone()
-                receiver = random.choice([p for p in PHONES if p != sender])
-                r2 = await client.post("/transactions", headers=op_h, json={
-                    "amount": rand_amount(),
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
                     "currency": "XOF",
                     "transaction_type": random.choices(TX_TYPES, weights=TX_TYPE_WEIGHTS)[0],
                     "sender_phone": sender,
                     "receiver_phone": receiver,
                     "sender_name": f"Émetteur {random.randint(100,999)}",
                     "receiver_name": f"Destinataire {random.randint(100,999)}",
-<<<<<<< HEAD
                     "transaction_date": tx_date.isoformat(),
-=======
-                    "transaction_date": rand_date(120),
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
                 })
                 if r2.status_code == 201:
                     tx_ids.append(r2.json()["id"])
                     count += 1
-<<<<<<< HEAD
             print(f"   ✓ {uname} : {count}/40 transactions normales créées")
 
         # ── 5b. LOT B : Transactions suspectes directement en base ───────────
         # Gros montants + created_at dans le passé lointain (> 2h)
-        # → fraud_service déclenché manuellement ; velocity ne se cumule pas
+        # → alertes fraude insérées directement ; velocity ne se cumule pas
         print("\n🚨 LOT B — Injection transactions suspectes en base (25 par opérateur)...")
         conn2 = await asyncpg.connect(get_db_url())
         try:
-            suspicious_tx_ids = []
+            suspicious_tx_ids: list[str] = []
             operator_usernames = ["wave_sn", "orangemoney", "freemoney"]
 
             for uname in operator_usernames:
@@ -367,44 +300,46 @@ async def run() -> None:
                         past_created_at,
                     )
 
-                    # Insérer les alertes fraude correspondantes
                     # 1. LARGE_AMOUNT (systématique pour ≥ 1M)
                     risk_large = min(1.0, amount / 2_000_000)
                     await conn2.execute("""
-                        INSERT INTO fraud_alerts (id, transaction_id, fraud_type, status, risk_score, description, details, detected_at)
+                        INSERT INTO fraud_alerts (id, transaction_id, fraud_type, status,
+                                                  risk_score, description, details, detected_at)
                         VALUES ($1,$2,'LARGE_AMOUNT','DETECTED',$3,$4,$5,$6)
                     """,
                         uuid.uuid4(), tx_id,
                         round(risk_large, 4),
                         f"Montant {amount:,.0f} XOF dépasse le seuil de 1 000 000 XOF",
-                        f'{{"amount": {amount}, "threshold": 1000000}}',
+                        json.dumps({"amount": amount, "threshold": 1_000_000}),
                         past_created_at,
                     )
 
-                    # 2. STRUCTURING (aléatoire, ~60%)
+                    # 2. STRUCTURING (~60%)
                     if random.random() < 0.6:
                         cumulative = amount + random.randint(200_000, 800_000)
                         risk_struct = min(1.0, cumulative / 1_000_000)
                         await conn2.execute("""
-                            INSERT INTO fraud_alerts (id, transaction_id, fraud_type, status, risk_score, description, details, detected_at)
+                            INSERT INTO fraud_alerts (id, transaction_id, fraud_type, status,
+                                                      risk_score, description, details, detected_at)
                             VALUES ($1,$2,'STRUCTURING','DETECTED',$3,$4,$5,$6)
                         """,
                             uuid.uuid4(), tx_id,
                             round(risk_struct, 4),
                             f"Montant cumulé {cumulative:,.0f} XOF sur 24h — structuring probable",
-                            f'{{"cumulative_amount": {cumulative}, "threshold": 500000}}',
+                            json.dumps({"cumulative_amount": cumulative, "threshold": 500_000}),
                             past_created_at,
                         )
 
                     # 3. ROUND_TRIPPING (~30%)
                     if random.random() < 0.3:
                         await conn2.execute("""
-                            INSERT INTO fraud_alerts (id, transaction_id, fraud_type, status, risk_score, description, details, detected_at)
+                            INSERT INTO fraud_alerts (id, transaction_id, fraud_type, status,
+                                                      risk_score, description, details, detected_at)
                             VALUES ($1,$2,'ROUND_TRIPPING','DETECTED',0.85,$3,$4,$5)
                         """,
                             uuid.uuid4(), tx_id,
                             "Transaction aller-retour détectée entre les mêmes parties",
-                            f'{{"reverse_count": 1, "window_hours": 24}}',
+                            json.dumps({"reverse_count": 1, "window_hours": 24}),
                             past_created_at,
                         )
 
@@ -415,9 +350,6 @@ async def run() -> None:
 
         finally:
             await conn2.close()
-=======
-            print(f"   ✓ {uname} : {count}/35 transactions créées")
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 
         # ── 6. Login agents → audits ─────────────────────────────────────────
         print("\n🔍 Création des audits...")
@@ -427,17 +359,14 @@ async def run() -> None:
             ("auditeur_fall",  "Audit@2026!"),
             ("auditeur_ndiaye","Audit@2026!"),
         ]
-        agent_tokens = []
+        agent_tokens: list[str] = []
         for (uname, pwd) in agents:
             r = await client.post("/auth/login", json={"username": uname, "password": pwd})
             if r.status_code == 200:
                 agent_tokens.append(r.json()["access_token"])
                 user_tokens[uname] = r.json()["access_token"]
 
-<<<<<<< HEAD
         all_tx_for_audit = tx_ids + suspicious_tx_ids
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
         audit_count = 0
         for i, (title, anom) in enumerate(AUDIT_TITLES):
             if not agent_tokens:
@@ -448,48 +377,31 @@ async def run() -> None:
                 "description": f"Description détaillée : {title.lower()}. Analyse en cours.",
                 "anomaly_type": anom,
             }
-            # Lier à une transaction existante pour les premiers audits
-<<<<<<< HEAD
+            # Lier à une transaction existante (priorité aux tx suspectes)
             if all_tx_for_audit and i < len(all_tx_for_audit):
                 payload["transaction_id"] = all_tx_for_audit[i]
-=======
-            if tx_ids and i < len(tx_ids):
-                payload["transaction_id"] = tx_ids[i]
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
             r = await client.post("/audits", headers=agt_h, json=payload)
             if r.status_code == 201:
                 audit_count += 1
         print(f"   ✓ {audit_count}/{len(AUDIT_TITLES)} audits créés")
 
-<<<<<<< HEAD
-        # ── 7. Notifications pour citoyen et opérateurs ───────────────────────
-=======
-        # ── 7. Notifications pour citoyen et opérateurs (test) ───────────────
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
+        # ── 7. Notifications (connexion des comptes pour validation) ─────────
         print("\n🔔 Vérification des notifications...")
         for (uname, pwd) in [("amadou_ba", "Citoyen@2026!"), ("wave_sn", "Oper@2026!")]:
             r = await client.post("/auth/login", json={"username": uname, "password": pwd})
             if r.status_code == 200:
                 user_tokens[uname] = r.json()["access_token"]
 
-<<<<<<< HEAD
         total_tx = len(tx_ids) + len(suspicious_tx_ids)
 
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
         # ── 8. Résumé ─────────────────────────────────────────────────────────
         print(f"\n{'='*65}")
         print("✅ BASE DE DONNÉES INITIALISÉE AVEC SUCCÈS")
         print(f"{'='*65}")
-<<<<<<< HEAD
         print(f"  Transactions normales   : ~{len(tx_ids)} (reçus fiscaux 18%)")
         print(f"  Transactions suspectes  : ~{len(suspicious_tx_ids)} (alertes fraude)")
         print(f"  Total transactions      : ~{total_tx}")
         print(f"  Audits créés            : {audit_count}")
-=======
-        print(f"  Transactions créées : ~{len(tx_ids)}")
-        print(f"  Audits créés        : {audit_count}")
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
         print(f"  (Reçus & alertes fraude générés automatiquement en arrière-plan)")
         print()
         print("  Comptes de test :")
