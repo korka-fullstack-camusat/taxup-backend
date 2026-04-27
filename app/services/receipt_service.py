@@ -11,10 +11,7 @@ from app.models.transaction import Transaction, TransactionStatus
 from app.models.user import User, UserRole
 from app.services.signature_service import SignatureService
 from app.core.config import settings
-<<<<<<< HEAD
 from app.core.redis import redis_client
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 
 
 class ReceiptService:
@@ -35,16 +32,12 @@ class ReceiptService:
                 detail="Receipt already exists for this transaction",
             )
 
-<<<<<<< HEAD
         # Cherche le taux dynamique dans Redis
         platform_settings_data = await redis_client.get("platform:settings")
         if platform_settings_data and "default_tax_rate" in platform_settings_data:
             tax_rate = float(platform_settings_data["default_tax_rate"])
         else:
             tax_rate = settings.DEFAULT_TAX_RATE
-=======
-        tax_rate = settings.DEFAULT_TAX_RATE
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
         tax_base = float(transaction.amount)
         tax_amount = round(tax_base * tax_rate, 2)
         total = round(tax_base + tax_amount, 2)

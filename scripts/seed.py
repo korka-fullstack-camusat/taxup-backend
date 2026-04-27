@@ -170,13 +170,12 @@ async def insert_admin_direct(conn: asyncpg.Connection, username: str,
     )
     return admin_id
 
-# ── Seed principal ────────────────────────────────────────────────────────────
+# ── Phase 1 : setup DB (event loop isolé — évite conflit asyncpg/httpx) ───────
 
-async def run() -> None:
+async def setup_db() -> None:
     db_url = get_db_url()
     print(f"📦 Connexion DB : {db_url[:50]}...")
     conn = await asyncpg.connect(db_url)
-
     try:
         print("🗑  Nettoyage des tables...")
         await conn.execute("""
@@ -194,10 +193,13 @@ async def run() -> None:
                                   EXTRA_ADMIN_PASSWORD, "Amadou Kane",
                                   "+224600000099")
         print(f"   ✓ {EXTRA_ADMIN_USERNAME} / {EXTRA_ADMIN_PASSWORD}")
-
     finally:
         await conn.close()
 
+
+# ── Phase 2 : seed via API (event loop frais — httpx fonctionne correctement) ─
+
+async def seed_via_api() -> None:
     async with httpx.AsyncClient(base_url=BASE_URL, timeout=REQUEST_TIMEOUT) as client:
 
         print("\n🔑 Connexion admin...")
@@ -218,7 +220,7 @@ async def run() -> None:
             ("auditeur_ndiaye","auditeur_ndiaye@taxup.sn",   "Aissatou Ndiaye",         "AUDITEUR_FISCAL",  "+224600000005", "Cellule Audit Fiscal",   "Audit@2026!"),
             ("wave_sn",        "wave_sn@taxup.sn",           "Wave Sénégal",            "OPERATEUR_MOBILE", "+224600000010", "Wave Mobile Money",      "Oper@2026!"),
             ("orangemoney",    "orangemoney@taxup.sn",        "Orange Money Guinée",     "OPERATEUR_MOBILE", "+224600000011", "Orange Money SA",        "Oper@2026!"),
-            ("freemoney",      "freemoney@taxup.sn",          "Free Money",              "OPERATEUR_MOBILE", "+224600000012", "Free Guinée",            "Oper@2026!"),
+            ("freemoney",      "freemoney@taxup.sn",          "Free Money",              "OPERATEUR_MOBILE", "+224600000012", "Wave Senegal",           "Oper@2026!"),
             ("amadou_ba",      "amadou_ba@gmail.com",         "Amadou Ba",               "CITOYEN",          "+224620000001", None,                     "Citoyen@2026!"),
             ("fatou_mbaye",    "fatou_mbaye@gmail.com",       "Fatou Mbaye",             "CITOYEN",          "+224620000002", None,                     "Citoyen@2026!"),
         ]
@@ -290,6 +292,8 @@ async def run() -> None:
                 await asyncio.sleep(DELAY_BETWEEN_TX)
             tag = "" if failed == 0 else f" ({failed} échecs tolérés)"
             print(f"   ✓ {uname} : {count}/{TX_PER_OPERATOR_LOT_A}{tag}")
+
+        # receipt generation happens in Phase 3 (generate_receipts_db)
 
         # ── 5b. LOT B : Transactions suspectes directement en base ───────────
         print(f"\n🚨 LOT B — Transactions suspectes ({SUSPICIOUS_TX_PER_OPERATOR}/opérateur)...")
@@ -415,7 +419,7 @@ async def run() -> None:
         print(f"\n{'='*65}")
         print("✅ BASE DE DONNÉES INITIALISÉE AVEC SUCCÈS")
         print(f"{'='*65}")
-        print(f"  Transactions normales   : {len(tx_ids)} (reçus fiscaux 18%)")
+        print(f"  Transactions normales   : {len(tx_ids)}")
         print(f"  Transactions suspectes  : {len(suspicious_tx_ids)} (alertes fraude)")
         print(f"  Total transactions      : {total_tx}")
         print(f"  Audits créés            : {audit_count}")
@@ -441,5 +445,78 @@ async def run() -> None:
         print(f"{'='*65}\n")
 
 
+# ── Phase 3 : Génération des reçus fiscaux (event loop isolé) ──────────────────
+
+async def generate_receipts_db() -> int:
+    import hashlib
+    conn = await asyncpg.connect(get_db_url())
+    receipt_count = 0
+    try:
+        rows = await conn.fetch(
+            "SELECT id, reference, operator_id, amount, currency FROM transactions "
+            "WHERE id NOT IN (SELECT transaction_id FROM fiscal_receipts)"
+        )
+        print(f"\n🧾 Génération des reçus fiscaux ({len(rows)} transactions sans reçu)...")
+        now = datetime.now(timezone.utc)
+        fiscal_year = now.year
+        quarter = (now.month - 1) // 3 + 1
+        fiscal_period = f"{fiscal_year}-Q{quarter}"
+        tax_rate = 0.18
+        ts_str = now.strftime("%Y%m%d")
+
+        for row in rows:
+            tax_base   = float(row["amount"])
+            tax_amount = round(tax_base * tax_rate, 2)
+            total      = round(tax_base + tax_amount, 2)
+            hash_part  = hashlib.sha256(
+                f"{row['operator_id']}{row['reference']}".encode()
+            ).hexdigest()[:8].upper()
+            receipt_number    = f"RCPT-{ts_str}-{hash_part}"
+            sig_raw           = f"{receipt_number}|{row['reference']}|{row['amount']}|{tax_rate}"
+            digital_signature = hashlib.sha256(sig_raw.encode()).hexdigest()
+            qr_data           = f"TAXUP|{receipt_number}|{digital_signature[:16]}"
+            try:
+                await conn.execute("""
+                    INSERT INTO fiscal_receipts (
+                        id, receipt_number, transaction_id, operator_id,
+                        tax_base, tax_rate, tax_amount, total_amount, currency,
+                        digital_signature, signature_algorithm, qr_code_data,
+                        fiscal_year, fiscal_period, is_certified, issued_at,
+                        is_cancelled
+                    ) VALUES (
+                        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,true,$15,false
+                    )
+                """,
+                    uuid.uuid4(), receipt_number, row["id"], row["operator_id"],
+                    tax_base, tax_rate, tax_amount, total, row["currency"],
+                    digital_signature, "SHA256-SEED", qr_data,
+                    fiscal_year, fiscal_period, now,
+                )
+                await conn.execute(
+                    "UPDATE transactions SET status='COMPLETED', updated_at=$1 WHERE id=$2",
+                    now, row["id"],
+                )
+                receipt_count += 1
+            except Exception as e:
+                print(f"   ✗ Reçu {row['reference']}: {e}")
+    finally:
+        await conn.close()
+    print(f"   ✓ {receipt_count} reçus générés")
+    return receipt_count
+
+
 if __name__ == "__main__":
-    asyncio.run(run())
+    # Flush Redis pour effacer les rate limits de la session précédente
+    import redis as _redis
+    _redis_url = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    _r = _redis.from_url(_redis_url)
+    _r.flushdb()
+    print("🗑  Redis vidé (rate limits effacés)")
+    _r.close()
+
+    # Phase 1 : setup DB dans un event loop isolé (évite conflit asyncpg/httpx)
+    asyncio.run(setup_db())
+    # Phase 2 : seed via API dans un event loop frais
+    asyncio.run(seed_via_api())
+    # Phase 3 : génération des reçus fiscaux (event loop frais)
+    asyncio.run(generate_receipts_db())

@@ -16,10 +16,7 @@ _DEFAULTS: dict = {
     "alert_email": "",
     "maintenance_mode": False,
     "auto_audit_enabled": True,
-<<<<<<< HEAD
     "default_tax_rate": 0.18,
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 }
 
 
@@ -29,10 +26,7 @@ class PlatformSettings(BaseModel):
     alert_email: str = ""
     maintenance_mode: bool = False
     auto_audit_enabled: bool = True
-<<<<<<< HEAD
     default_tax_rate: float = Field(0.18, ge=0.0, le=1.0)
-=======
->>>>>>> 661ee2d04c5667b767b22c745790395a7b678c89
 
 
 @router.get(
